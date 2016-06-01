@@ -3,7 +3,7 @@ Jenkins mantis plugin
 
 This plugin is to be used to release versions.
 The versions in mantis has to be as following : x.x.x
-The jenkins job has to have the following parameter : majeur, mineur,
+The jenkins job has to have the following parameters : majeure, mineure,
 maintenance
 These parameters define the version (x.x.x) as majeur.mineur.maintenance
 
