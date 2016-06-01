@@ -1,9 +1,15 @@
 # mantis-plugin
 Jenkins mantis plugin
 
-Changes to the official plugin:
-- Automatic version handling in mantis after successful jenkins build implemented as a post build action.
-- Version name can be set in the changeset.
-- New version can be created, or the latest existing mantis version can be released and renamed.
-- The previously released mantis version can be marked as obsolete.
-- Missing version can turn the build process to FAILURE.
+This plugin is to be used to release versions.
+The versions in mantis has to be as following : x.x.x
+The jenkins job has to have the following parameter : majeur, mineur,
+maintenance
+These parameters define the version (x.x.x) as majeur.mineur.maintenance
+
+All matching issues in mantis must be resolved or validated, and the
+version for the selected project has to be releasable (or an error
+occurs and the job is stoped)
+
+In order to trigger the mantis operations, add the after build action
+"Release version on Mantis" and check the 2 boxes.
