@@ -2,12 +2,15 @@ package hudson.plugins.mantis.soap.mantis120;
 
 import hudson.plugins.mantis.MantisHandlingException;
 import hudson.plugins.mantis.MantisSite;
+import hudson.plugins.mantis.Messages;
+import hudson.plugins.mantis.Utility;
 import hudson.plugins.mantis.model.MantisCategory;
 import hudson.plugins.mantis.model.MantisIssue;
 import hudson.plugins.mantis.model.MantisNote;
 import hudson.plugins.mantis.model.MantisProject;
 import hudson.plugins.mantis.model.MantisProjectVersion;
 import hudson.plugins.mantis.soap.AbstractMantisSession;
+import java.io.PrintStream;
 import java.math.BigInteger;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -25,7 +28,7 @@ import org.apache.axis.client.Stub;
 
 public final class MantisSessionImpl extends AbstractMantisSession {
 
-    private final MantisConnectPortType portType;
+    public final MantisConnectPortType portType;
 
     public MantisSessionImpl(final MantisSite site) throws MantisHandlingException {
         LOGGER.info("Mantis version is 1.2.X");
@@ -69,6 +72,18 @@ public final class MantisSessionImpl extends AbstractMantisSession {
 
         return new MantisIssue(id, data.getSummary());
     }
+    
+    public IssueData getIssueData(final int id) throws MantisHandlingException {
+        IssueData data;
+        try {
+            data =
+                    portType.mc_issue_get(site.getUserName(), site.getPlainPassword(), BigInteger.valueOf(id));
+        } catch (final RemoteException e) {
+            throw new MantisHandlingException(e);
+        }
+
+        return data;
+    }
 
     public void addNote(final int id, final MantisNote note)
             throws MantisHandlingException {
@@ -77,9 +92,24 @@ public final class MantisSessionImpl extends AbstractMantisSession {
         data.setView_state(new ObjectRef(BigInteger.valueOf(note.getViewState().getCode()), null));
 
         try {
+            //tjd action2!!!
             portType.mc_issue_note_add(site.getUserName(), site.getPlainPassword(), BigInteger.valueOf(id), data);
         } catch (final RemoteException e) {
             throw new MantisHandlingException(e);
+        }
+    }
+    
+    //pour cette fonction on recoit directement les données formattées car on ne peut pas savoir ce qui va etre mis à jour...
+    public void updateIssue(final int id, final IssueData data, PrintStream logger)
+            throws MantisHandlingException {
+        
+        try {
+
+            portType.mc_issue_update(site.getUserName(), site.getPlainPassword(), BigInteger.valueOf(id), data);
+        } catch (final RemoteException e) {
+            Utility.log(logger, Messages.Updater_Updating("Exception : " + e.getCause()));
+            throw new MantisHandlingException(e);
+            
         }
     }
 
@@ -165,6 +195,45 @@ public final class MantisSessionImpl extends AbstractMantisSession {
 
         return addedIssueNo.intValue();
     }
+    
+    public hudson.plugins.mantis.soap.mantis120.IssueHeaderData[] /*BigInteger[]*/ tjd_getTargetVersionIssues(int projectID , String targetVersion, PrintStream logger) throws MantisHandlingException {
+        if (targetVersion == "") {
+            throw new MantisHandlingException("target version should not be null.");
+        }
+
+        //Utility.log(logger, Messages.tjd_monmsg("22222"));
+        
+        FilterSearchData data = new FilterSearchData();
+        /*MantisProject project = pproject;
+        if (project == null) {
+            throw new MantisHandlingException("project is missing.");
+        }*/
+        
+        /*MantisCategory category = issue.getCategory();
+        if (category == null) {
+            throw new MantisHandlingException("category is missing.");
+        }*/
+
+
+        ObjectRef pRef = new ObjectRef(BigInteger.valueOf(projectID) /*BigInteger.valueOf(project.getId())*/, "FoxCore"/*project.getName()*/);
+
+        
+        data.setProject(pRef);
+        data.setTarget_version(targetVersion);
+
+        //BigInteger[] issuesID = null;
+        hudson.plugins.mantis.soap.mantis120.IssueHeaderData[] issuesHeaders = null;
+        try {
+            //issuesID = portType.mc_filter_search_issue_ids(site.getUserName(), site.getPlainPassword(), data, logger);
+            issuesHeaders = portType.mc_filter_search_issue_headers(site.getUserName(), site.getPlainPassword(), data);
+            
+        } catch (final java.lang.Exception e) {
+            Utility.log(logger, e.getLocalizedMessage());
+            throw new MantisHandlingException(e);
+        }
+
+        return issuesHeaders;
+    }
 
     private static final Logger LOGGER = Logger.getLogger(MantisSessionImpl.class.getName());
     
@@ -177,6 +246,27 @@ public final class MantisSessionImpl extends AbstractMantisSession {
         MantisProjectVersion cur;
         try {
             mc_project_get_versions = portType.mc_project_get_versions(site.getUserName(), site.getPlainPassword(), projectId);
+            for (ProjectVersionData pgv : mc_project_get_versions) {
+                cur = new MantisProjectVersion(projectId,pgv.getId(), pgv.getName(),pgv.getDescription(), pgv.getReleased());
+                cur.setDateOrder(pgv.getDate_order().getTime());
+                cur.setObsolete(pgv.getObsolete());
+                result.add(cur);
+            }
+        } catch (RemoteException ex) {
+             throw new MantisHandlingException(ex);
+        }
+        return result;
+    }
+    
+    public List<MantisProjectVersion> getProjectUnreleasedVersions(BigInteger projectId) throws MantisHandlingException {
+        if (projectId == null) {
+            throw new MantisHandlingException("projectId should not be null.");
+        }
+        ProjectVersionData[] mc_project_get_versions;
+        List<MantisProjectVersion> result = new ArrayList<MantisProjectVersion>();
+        MantisProjectVersion cur;
+        try {
+            mc_project_get_versions = portType.mc_project_get_unreleased_versions(site.getUserName(), site.getPlainPassword(), projectId);
             for (ProjectVersionData pgv : mc_project_get_versions) {
                 cur = new MantisProjectVersion(projectId,pgv.getId(), pgv.getName(),pgv.getDescription(), pgv.getReleased());
                 cur.setDateOrder(pgv.getDate_order().getTime());
@@ -219,12 +309,35 @@ public final class MantisSessionImpl extends AbstractMantisSession {
                 version.getVersion(), version.getProjectId(), cal, 
                 version.getDescription(),version.isReleased(), version.isObsolete());
         boolean mc_project_version_update;
+        BigInteger tmp;
+        try {
+            /*mc_project_version_update*/ tmp = portType.mc_project_version_update(
+                    site.getUserName(), site.getPlainPassword(), version.getId(), vdata);
+        } catch (RemoteException ex) {
+            
+            throw new MantisHandlingException(ex);
+        }
+        return /*mc_project_version_update*/ true;
+    }
+    
+    /*public BigInteger updateProjectVersion2(MantisProjectVersion version, PrintStream logger) throws MantisHandlingException {
+        if (version == null && version.getId() != null)  {
+            throw new MantisHandlingException("version should not be null.");
+        }
+        Calendar cal = new GregorianCalendar();
+        cal.setTime(version.getDateOrder());
+        ProjectVersionData vdata = new ProjectVersionData(version.getId(), 
+                version.getVersion(), version.getProjectId(), cal, 
+                version.getDescription(),version.isReleased(), version.isObsolete());
+        BigInteger mc_project_version_update;
+        Utility.log(logger, Messages.tjd_monmsg("on va appeller : " + version.getId().toString()+ "!"+version.getVersion().toString()+ "!"+version.getProjectId().toString()));
         try {
             mc_project_version_update = portType.mc_project_version_update(
                     site.getUserName(), site.getPlainPassword(), version.getId(), vdata);
         } catch (RemoteException ex) {
+            Utility.log(logger, Messages.tjd_monmsg("Exception : " + ex.getMessage()));
             throw new MantisHandlingException(ex);
         }
         return mc_project_version_update;
-    }
+    }*/
 }

@@ -43,6 +43,7 @@ public final class MantisProjectProperty extends JobProperty<AbstractProject<?, 
     private static final String DEFAULT_PATTERN = "issue #?" + ISSUE_ID_STRING;
     
     private static final String VERSION_STRING = "%VERSION%";
+    
     private static final String DEFAULT_VERSION_PATTERN = "version #" + VERSION_STRING + "#";
     
     private final String siteName;
@@ -70,8 +71,7 @@ public final class MantisProjectProperty extends JobProperty<AbstractProject<?, 
     
     @DataBoundConstructor
     public MantisProjectProperty(String siteName, int projectId, String category,
-            String pattern, String regex, boolean linkEnabled, 
-            String versionPattern) {
+            String pattern, String regex, boolean linkEnabled, String versionPattern) {
         String name;
         if (siteName != null) {
              name = siteName;

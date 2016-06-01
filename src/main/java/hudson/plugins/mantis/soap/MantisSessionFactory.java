@@ -17,10 +17,11 @@ public final class MantisSessionFactory {
 
     public static MantisSession getSession(final MantisSite site)
             throws MantisHandlingException {
-        if (MantisVersion.V120.equals(site.getVersion())) {
+        //tjd 
+        //if (MantisVersion.V120.equals(site.getVersion())) {
             return new MantisSessionImpl(site);
-        }
-        return new hudson.plugins.mantis.soap.mantis110.MantisSessionImpl(site);
+        //}
+        //return new hudson.plugins.mantis.soap.mantis110.MantisSessionImpl(site);
     }
 
 }

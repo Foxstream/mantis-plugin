@@ -3,13 +3,13 @@
     <f:entry title="" field="keepNotePrivate" >
         <label>
             <f:checkbox checked="${instance.keepNotePrivate}" />
-    ${%Keep note private}
+    ${%Release version on Mantis and close issues}
         </label>
     </f:entry>
     <f:entry title="" field="recordChangelog">
         <label>
             <f:checkbox checked="${instance.recordChangelog}" />
-    ${%Record changelog to note}
+    ${%Update changelog file - you must check the first option}
         </label>
     </f:entry>
 </j:jelly>

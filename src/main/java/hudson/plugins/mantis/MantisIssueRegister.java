@@ -139,7 +139,7 @@ public final class MantisIssueRegister extends Recorder {
         return summary.toString();
     }
     
-    @Extension
+    /*@Extension
     public static final class DescriptorImpl extends BuildStepDescriptor<Publisher> {
         
         public DescriptorImpl() {
@@ -155,7 +155,7 @@ public final class MantisIssueRegister extends Recorder {
         public boolean isApplicable(Class<? extends AbstractProject> jobType) {
             return true;
         }
-    }
+    }*/
     
     private static final Logger LOGGER = Logger.getLogger(MantisIssueRegister.class.getName());
 }

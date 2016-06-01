@@ -10,7 +10,11 @@ import hudson.plugins.mantis.model.MantisProjectVersion;
 import hudson.plugins.mantis.model.MantisViewState;
 import hudson.plugins.mantis.soap.MantisSession;
 import hudson.plugins.mantis.soap.MantisSessionFactory;
+import hudson.plugins.mantis.soap.mantis120.IssueData;
+import hudson.plugins.mantis.soap.mantis120.ObjectRef;
 import hudson.util.Secret;
+import java.io.PrintStream;
+import java.math.BigInteger;
 
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -195,6 +199,22 @@ public final class MantisSite {
         return uv;
     }
     
+    public BigInteger checkProjectVersionReleasable(java.math.BigInteger projectId, String version) throws MantisHandlingException {
+        if (version == null) {
+            throw new MantisHandlingException("version should not be null.");
+        }
+        final MantisSession session = createSession();
+        List<MantisProjectVersion> projectVersions = session.getProjectUnreleasedVersions(projectId);
+        //MantisProjectVersion uv = null;
+        for (MantisProjectVersion projectVersion : projectVersions) {
+            //LOGGER.log(Level.INFO, "projectVersion: " + projectVersion);
+            if (projectVersion.getVersion().equals(version) && !projectVersion.isReleased()) {
+                return projectVersion.getId();
+            }
+        }
+        return null;
+    }
+    
     public MantisProjectVersion getLatestNotObsoleteProjectVersion(MantisProjectVersion version) throws MantisHandlingException {
         if (version == null) {
             return null;
@@ -213,6 +233,10 @@ public final class MantisSite {
         return uv;
     }
     
+    public boolean updateProjectVersion2(MantisProjectVersion version, PrintStream logger) throws MantisHandlingException {
+        final MantisSession session = createSession();
+        return session.updateProjectVersion(version);
+    }
     public boolean updateProjectVersion(MantisProjectVersion version) throws MantisHandlingException {
         final MantisSession session = createSession();
         return session.updateProjectVersion(version);
@@ -222,8 +246,14 @@ public final class MantisSite {
         final MantisSession session = createSession();
         return session.getIssue(id);
     }
-
-    public void updateIssue(final int id, final String text, final boolean keepNotePrivate)
+    
+    public hudson.plugins.mantis.soap.mantis120.IssueHeaderData[] /*java.math.BigInteger[]*/ tjd_getTargetVersionIssues(int project , String targetVersion, PrintStream logger) throws MantisHandlingException {
+        final MantisSession session = createSession();
+        //Utility.log(logger, Messages.tjd_monmsg("xxxxxxx"));
+        return session.tjd_getTargetVersionIssues(project, targetVersion, logger);
+    }
+    
+    public void updateIssue(final int id, final String projectVersion, final boolean keepNotePrivate, final int status, PrintStream logger)
             throws MantisHandlingException {
 
         MantisViewState viewState;
@@ -232,10 +262,20 @@ public final class MantisSite {
         } else {
             viewState = MantisViewState.PUBLIC;
         }
-        MantisNote note = new MantisNote(text, viewState);
+        MantisNote note = new MantisNote("Released version " + projectVersion, viewState);
 
         MantisSession session = createSession();
-        session.addNote(id, note);
+        //tjd ajouter ici les diverses actions sur tickets
+        IssueData issue = session.getIssueData(id);
+        //target_version
+        issue.setFixed_in_version(projectVersion);        
+        //status closed + comment
+        issue.setStatus(new ObjectRef(java.math.BigInteger.valueOf(status), null));     
+        session.addNote(id, note);  //on ajoute la note liée à la nouvelle release (et cloture du ticket)
+        //ticket update
+        session.updateIssue(id, issue, logger);  //on clot le ticket      
+        
+        //
     }
 
     public List<MantisProject> getProjects() throws MantisHandlingException {
@@ -256,6 +296,7 @@ public final class MantisSite {
     private MantisSession createSession() throws MantisHandlingException {
         return MantisSessionFactory.getSession(this);
     }
+
 
     public enum MantisVersion {
         /**

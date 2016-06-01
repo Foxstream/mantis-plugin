@@ -90,10 +90,7 @@ public class MantisProjectVersion implements Serializable {
 
     @Override
     public String toString() {
-        return "MantisProjectVersion{" + "projectId=" + projectId + ", id=" + id + ", "
-                + "version=" + version + ", dateOrder=" + dateOrder + ", "
-                + "description=" + description + ", released=" + released 
-                + ", obsolete=" + obsolete + '}';
+        return "MantisProjectVersion{" + "projectId=" + projectId + ", id=" + id + ", version=" + version + ", dateOrder=" + dateOrder + ", description=" + description + ", released=" + released + ", obsolete=" + obsolete + '}';
     }
     
     

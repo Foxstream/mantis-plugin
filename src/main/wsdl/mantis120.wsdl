@@ -341,6 +341,12 @@
    <xsd:element name="total_results" type="xsd:integer" minOccurs="0"/>
   </xsd:all>
  </xsd:complexType>
+ <xsd:complexType name="FilterSearchData">
+  <xsd:all>
+   <xsd:element name="project" type="tns:ObjectRef" minOccurs="0"/>
+   <xsd:element name="target_version" type="xsd:string" minOccurs="0"/>
+  </xsd:all>
+ </xsd:complexType>
 </xsd:schema>
 </types>
 <message name="mc_versionRequest"></message>
@@ -616,7 +622,7 @@
   <part name="version_id" type="xsd:integer" />
   <part name="version" type="tns:ProjectVersionData" /></message>
 <message name="mc_project_version_updateResponse">
-  <part name="return" type="xsd:boolean" /></message>
+  <part name="return" type="xsd:integer" /></message>
 <message name="mc_project_version_deleteRequest">
   <part name="username" type="xsd:string" />
   <part name="password" type="xsd:string" />
@@ -747,6 +753,12 @@
   <part name="tag_id" type="xsd:integer" /></message>
 <message name="mc_tag_deleteResponse">
   <part name="return" type="xsd:boolean" /></message>
+<message name="mc_filter_search_issue_headersRequest">
+  <part name="username" type="xsd:string" />
+  <part name="password" type="xsd:string" />
+  <part name="filter" type="tns:FilterSearchData" /></message>  
+<message name="mc_filter_search_issue_headersResponse">
+  <part name="return" type="tns:IssueHeaderDataArray" /></message>      
 <portType name="MantisConnectPortType">
   <operation name="mc_version">
     <input message="tns:mc_versionRequest"/>
@@ -1066,6 +1078,11 @@
     <documentation>Deletes a tag.</documentation>
     <input message="tns:mc_tag_deleteRequest"/>
     <output message="tns:mc_tag_deleteResponse"/>
+  </operation>
+  <operation name="mc_filter_search_issue_headers">
+    <documentation>Recupere les infos d'issues matchant le filtre fourni.</documentation>
+    <input message="tns:mc_filter_search_issue_headersRequest"/>
+    <output message="tns:mc_filter_search_issue_headersResponse"/>
   </operation>
 </portType>
 <binding name="MantisConnectBinding" type="tns:MantisConnectPortType">
@@ -1387,6 +1404,11 @@
   </operation>
   <operation name="mc_tag_delete">
     <soap:operation soapAction="http://www.mantisbt.org/bugs/api/soap/mantisconnect.php/mc_tag_delete" style="rpc"/>
+    <input><soap:body use="encoded" namespace="http://futureware.biz/mantisconnect" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"/></input>
+    <output><soap:body use="encoded" namespace="http://futureware.biz/mantisconnect" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"/></output>
+  </operation>
+  <operation name="mc_filter_search_issue_headers">
+    <soap:operation soapAction="http://www.mantisbt.org/bugs/api/soap/mantisconnect.php/mc_filter_search_issue_headers" style="rpc"/>
     <input><soap:body use="encoded" namespace="http://futureware.biz/mantisconnect" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"/></input>
     <output><soap:body use="encoded" namespace="http://futureware.biz/mantisconnect" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"/></output>
   </operation>

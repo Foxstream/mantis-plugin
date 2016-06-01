@@ -8,24 +8,6 @@
       <f:entry title="${%Project}" field="projectId">
          <f:select />
       </f:entry>      
-      <f:entry title="${%Category}" field="category">
-         <f:select />
-      </f:entry>      
-      <f:entry title="${%Issue id pattern}" field="pattern">
-        <f:textbox value="${instance.pattern}" />
-      </f:entry>
-      <f:entry field="linkEnabled">
-        <f:checkbox id="linkEnabled" checked="${instance.linkEnabled}" />
-        <label class="attach-previous">${%Enable hyperlink to the issue}</label>
-      </f:entry>
-      <f:entry title="${%Version name pattern}" field="versionPattern" help="/plugin/mantis/help-pr-version.html">
-        <f:textbox value="${instance.versionPattern}" />
-      </f:entry>
-      <f:advanced>
-        <f:entry title="${%Regexp pattern}" field="regex">
-          <f:textbox value="${instance.regex}" />
-        </f:entry>
-      </f:advanced>
     </f:section>
   </j:if>  
 </j:jelly>

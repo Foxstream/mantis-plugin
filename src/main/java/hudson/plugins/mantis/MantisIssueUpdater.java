@@ -11,6 +11,8 @@ import hudson.tasks.BuildStepMonitor;
 import hudson.tasks.Publisher;
 import hudson.tasks.Recorder;
 import java.io.IOException;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import net.sf.json.JSONObject;
 
@@ -51,7 +53,12 @@ public final class MantisIssueUpdater extends Recorder {
     public boolean perform(final AbstractBuild<?, ?> build, final Launcher launcher,
             final BuildListener listener) throws InterruptedException, IOException {
         final Updater updater = new Updater(this);
-        return updater.perform(build, listener);
+        try {
+            return updater.perform(build, listener);
+        } catch (MantisHandlingException ex) {
+            Logger.getLogger(MantisIssueUpdater.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        return false;
     }
 
     @Extension

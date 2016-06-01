@@ -8,9 +8,15 @@ import hudson.model.Run;
 import hudson.plugins.mantis.changeset.ChangeSet;
 import hudson.plugins.mantis.changeset.ChangeSetFactory;
 import hudson.plugins.mantis.model.MantisIssue;
+import hudson.plugins.mantis.model.MantisProjectVersion;
 import hudson.scm.ChangeLogSet.Entry;
+import java.io.IOException;
 
 import java.io.PrintStream;
+import java.math.BigInteger;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
@@ -33,7 +39,7 @@ final class Updater {
         this.property = property;
     }
 
-    boolean perform(final AbstractBuild<?, ?> build, final BuildListener listener) {
+    boolean perform(final AbstractBuild<?, ?> build, final BuildListener listener) throws MantisHandlingException {
 
         final PrintStream logger = listener.getLogger();
 
@@ -50,40 +56,119 @@ final class Updater {
             build.setResult(Result.FAILURE);
             return true;
         }
-
-        final List<ChangeSet> chnageSets = findChangeSets(build);
-        if (chnageSets.isEmpty()) {
-            Utility.log(logger, Messages.Updater_NoIssuesFound());
-            return true;
-        }
-
+        
+        //check build status before starting mantis operation
         final boolean update = !build.getResult().isWorseThan(Result.UNSTABLE);
         if (!update) {
-            // Keep id for next build
             Utility.log(logger, Messages.Updater_KeepMantisIssueIdsForNextBuild());
-            build.addAction(new MantisCarryOverChangeSetAction(chnageSets));
+            //build.addAction(new MantisCarryOverChangeSetAction(chnageSets));
+            return true;
         }
+        String projectVersion;
+        String issuesList;
+        
+        //Release operations on Mantis  (todo: member isKeepNotePrivate to rename to activateMantisOperations)
+        if (this.property.isKeepNotePrivate())  
+        {
+            Utility.log(logger, Messages.tjd_monmsg("Performing mantis operations..." ));    
 
-        final List<MantisIssue> issues = new ArrayList<MantisIssue>();
-        for (final ChangeSet changeSet : chnageSets) {
-            try {
-                final MantisIssue issue = site.getIssue(changeSet.getId());
-                if (update) {
-                    final String text = createUpdateText(build, changeSet, rootUrl);
-                    site.updateIssue(changeSet.getId(), text, property.isKeepNotePrivate());
-                    Utility.log(logger, Messages.Updater_Updating(changeSet.getId()));
+            final List<ChangeSet> chnageSets = new ArrayList<ChangeSet>(); 
+
+            MantisProjectProperty mpp = MantisProjectProperty.get(build);
+            int projectId = mpp.getProjectId();
+                        
+            
+            projectVersion = build.getBuildVariables().get("Majeure")+"."+build.getBuildVariables().get("Mineure")+"."+build.getBuildVariables().get("Maintenance");
+
+            //Get issues for the selected project and the target version
+            hudson.plugins.mantis.soap.mantis120.IssueHeaderData[] issuesHeaders = null;
+            issuesHeaders = site.tjd_getTargetVersionIssues(projectId, projectVersion, logger);
+
+
+            issuesList = "";  //will be used later for the changelog update
+            //Browse all issues for this project and this version (as target version) to check that all are either validated either resolved
+            for (hudson.plugins.mantis.soap.mantis120.IssueHeaderData header : issuesHeaders) {   
+                if (header.getProject().intValue() == projectId)  //!!bug mantis api!! : filter on project id is not taken into account... so here it is
+                {
+                    if ((header.getStatus().intValue() != 80) && (header.getStatus().intValue() != 85))   
+                    {
+                        Utility.log(logger, Messages.tjd_monmsg("ERROR  The issue [" + header.getId().toString() + "] is neither resolved nor validated..." ));
+                        build.setResult(Result.FAILURE);                
+                    }
+                    else
+                    {
+                        chnageSets.add(ChangeSetFactory.newInstance(header.getId().intValue()));            
+                        issuesList =  issuesList + "," + header.getId().toString();  
+                    }
                 }
-                issues.add(issue);
-            } catch (final MantisHandlingException e) {
-                Utility.log(logger, Messages.Updater_FailedToAddNote(changeSet, e.getMessage()));
-                LOGGER.log(Level.WARNING, Messages.Updater_FailedToAddNote_StarckTrace(changeSet), e);
+            }
+            if (issuesList.length() > 1)
+                issuesList = issuesList.substring(1);  //first comma removal
+
+
+
+            //Release version on mantis
+            BigInteger releasableVersion = site.checkProjectVersionReleasable(BigInteger.valueOf(projectId), projectVersion);
+            if (releasableVersion != null)
+            {
+                MantisProjectVersion mpv = new MantisProjectVersion(BigInteger.valueOf(projectId), releasableVersion, projectVersion, Messages.MantisVersionRegister_VersionDescription(), true);
+                site.updateProjectVersion2(mpv, logger);
+            }
+            else
+            {
+                Utility.log(logger, Messages.tjd_monmsg("ERROR  The version [" + projectVersion + "] is not releasable on Mantis..." ));
+                build.setResult(Result.FAILURE);                
+            }    
+
+            //if some issues are neither resolved neither validated, or if the version is not releasable on mantis, we stop here
+            if (build.getResult() == Result.FAILURE)
+                return true;
+
+
+            //Browse the issues list to update them, one by one (close+comment)
+            for (final ChangeSet changeSet : chnageSets) {
+                try {  
+                    if (update) {
+                        site.updateIssue(changeSet.getId(), projectVersion, property.isKeepNotePrivate(), 90, logger);
+                        Utility.log(logger, Messages.Updater_Updating(changeSet.getId()));
+                    }
+                } catch (final MantisHandlingException e) {
+                    Utility.log(logger, Messages.Updater_FailedToAddNote(changeSet, e.getMessage()));
+                    LOGGER.log(Level.WARNING, Messages.Updater_FailedToAddNote_StarckTrace(changeSet), e);
+                }
+            } 
+        }
+        else
+        {
+            Utility.log(logger, Messages.tjd_monmsg("Mantis operations are skipped!!" ));
+            return true;
+        }
+        
+        //update changelog file
+        if (this.property.isRecordChangelog())  
+        {
+            Utility.log(logger, Messages.tjd_monmsg("Updating changelog File..." ));        
+            try {
+                String log = "\r\n[Release] " + build.getProject().getName() + "-" + projectVersion + " \r\nFrom svn://foxserver/trunk/" + build.getProject().getName() + " rev " + build.getBuildVariables().get("Revision") + " \r\n";
+                log = log + "Issue: " + issuesList;
+                //Files.write(Paths.get(build.getParent().getBuildDir().toString() + "\\ChangeLog2.txt"), log.getBytes(), StandardOpenOption.APPEND);
+                //Files.write(Paths.get(build.getParent().getWorkspace().toString() + "\\ChangeLog3.txt"), log.getBytes(), StandardOpenOption.APPEND);
+                Files.write(Paths.get(build.getParent().getSomeWorkspace() + "\\ChangeLog.txt"), log.getBytes(), StandardOpenOption.APPEND);
+
+            }catch (IOException e) {
+                Utility.log(logger, Messages.tjd_monmsg(e.getMessage() ));
             }
         }
-
+        else
+        {
+            Utility.log(logger, Messages.tjd_monmsg("Mantis operations are skipped!!" ));
+            return true;
+        }
+        
         // build is not null, so mpp is not null
-        MantisProjectProperty mpp = MantisProjectProperty.get(build);
-        build.getActions().add(
-                new MantisBuildAction(mpp.getRegexpPattern(), issues.toArray(new MantisIssue[0])));
+        //MantisProjectProperty mpp = MantisProjectProperty.get(build);
+        //build.getActions().add(
+        //        new MantisBuildAction(mpp.getRegexpPattern(), issues.toArray(new MantisIssue[0])));*/
         
         return true;
     }
@@ -139,7 +224,11 @@ final class Updater {
                 }
                 changeSets.add(ChangeSetFactory.newInstance(id, build, change));
             }
+            
+            
         }
+        
+        
         
         return changeSets;
     }
