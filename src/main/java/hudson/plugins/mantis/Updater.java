@@ -65,6 +65,7 @@ final class Updater {
             return true;
         }
         String projectVersion;
+        String projectDescription;
         String issuesList;
         
         //Release operations on Mantis  (todo: member isKeepNotePrivate to rename to activateMantisOperations)
@@ -77,8 +78,12 @@ final class Updater {
             MantisProjectProperty mpp = MantisProjectProperty.get(build);
             int projectId = mpp.getProjectId();
                         
+            if (build.getBuildVariables().get("Maintenance") != null)
+                projectVersion = build.getBuildVariables().get("Majeure")+"."+build.getBuildVariables().get("Mineure")+"."+build.getBuildVariables().get("Maintenance");
+            else
+                projectVersion = build.getBuildVariables().get("Majeure")+"."+build.getBuildVariables().get("Mineure");
             
-            projectVersion = build.getBuildVariables().get("Majeure")+"."+build.getBuildVariables().get("Mineure")+"."+build.getBuildVariables().get("Maintenance");
+            projectDescription = build.getBuildVariables().get("Description");
 
             //Get issues for the selected project and the target version
             hudson.plugins.mantis.soap.mantis120.IssueHeaderData[] issuesHeaders = null;
@@ -90,9 +95,9 @@ final class Updater {
             for (hudson.plugins.mantis.soap.mantis120.IssueHeaderData header : issuesHeaders) {   
                 if (header.getProject().intValue() == projectId)  //!!bug mantis api!! : filter on project id is not taken into account... so here it is
                 {
-                    if ((header.getStatus().intValue() != 80) && (header.getStatus().intValue() != 85))   
+                    if (header.getStatus().intValue() < 80)   
                     {
-                        Utility.log(logger, Messages.tjd_monmsg("ERROR  The issue [" + header.getId().toString() + "] is neither resolved nor validated..." ));
+                        Utility.log(logger, Messages.tjd_monmsg("ERROR  The issue [" + header.getId().toString() + "] is neither resolved nor validated... Satus is lower than 80..." ));
                         build.setResult(Result.FAILURE);                
                     }
                     else
@@ -111,7 +116,8 @@ final class Updater {
             BigInteger releasableVersion = site.checkProjectVersionReleasable(BigInteger.valueOf(projectId), projectVersion);
             if (releasableVersion != null)
             {
-                MantisProjectVersion mpv = new MantisProjectVersion(BigInteger.valueOf(projectId), releasableVersion, projectVersion, Messages.MantisVersionRegister_VersionDescription(), true);
+                MantisProjectVersion mpv = new MantisProjectVersion(BigInteger.valueOf(projectId), releasableVersion, 
+                                            projectVersion, projectDescription + "\n" + Messages.MantisVersionRegister_VersionDescription(), true);
                 site.updateProjectVersion2(mpv, logger);
             }
             else
